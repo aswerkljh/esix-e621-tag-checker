@@ -75,9 +75,9 @@ self.config = {
 ```json
 {
   "artists": [
-    "artist:snowskau",
-    "artist:sterr",
-    "artist:spuydjeks",
+    "snowskau",
+    "sterr",
+    "spuydjeks",
     "negiumaya_(artist)"
   ]
 }
