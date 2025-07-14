@@ -1,5 +1,11 @@
 <?php
 session_start();
+
+// Prevent browser caching to ensure fresh data on each visit
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 $db_file = 'e621_monitor.db';
 
 function getDbConnection($db_file) {
