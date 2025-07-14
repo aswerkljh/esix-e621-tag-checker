@@ -67,21 +67,17 @@ function setConfigValue($pdo, $key, $value) {
     return $stmt->execute([$key, $value]);
 }
 
+// This function checks how long it will take to check all artists and rounds it to the nearest hour
 function calculateTimeToCheckAllArtists($pdo, $total_artists) {
-    // Get check interval from database
     $check_interval_minutes = (int)getConfigValue($pdo, 'check_interval_minutes', 30);
     
-    // Calculate total time in minutes
     $total_minutes = $total_artists * $check_interval_minutes;
-    
-    // Round to nearest hour
+
     $total_hours = round($total_minutes / 60);
     
-    // Convert to days and hours
     $days = floor($total_hours / 24);
     $hours = $total_hours % 24;
     
-    // Format the result
     $parts = [];
     if ($days > 0) {
         $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
@@ -110,7 +106,6 @@ function getAllActiveArtists($pdo) {
     return $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// Get data
 $pdo = getDbConnection($db_file);
 $artists_with_new_posts = getArtistsWithNewPosts($pdo);
 $artists_with_no_posts = getArtistsWithNoPosts($pdo);
@@ -487,7 +482,6 @@ $all_artists = getAllActiveArtists($pdo);
                     <?php echo htmlspecialchars($_SESSION['message']); ?>
                 </div>
                 <?php 
-                // Clear the message after displaying it
                 unset($_SESSION['message']);
                 unset($_SESSION['message_type']);
                 ?>
@@ -620,14 +614,13 @@ $all_artists = getAllActiveArtists($pdo);
     
     <script>
         function markAsSeen(artist, linkElement, url) {
-            // Visual feedback - mark button as clicked
             linkElement.classList.add('clicked');
             linkElement.textContent = 'Marked as Seen';
             
             // Open the link in a new tab
+            // middle-mouse button works but doesn't trigger the mark_seen.php script
             window.open(url, '_blank');
             
-            // Send request to mark as seen
             fetch('mark_seen.php', {
                 method: 'POST',
                 headers: {
@@ -648,17 +641,13 @@ $all_artists = getAllActiveArtists($pdo);
             })
             .catch(error => {
                 console.error('Error marking as seen:', error);
-                // Revert visual feedback on error
                 linkElement.classList.remove('clicked');
                 linkElement.textContent = 'Open Artist on e621';
             });
         }
         
-
-
         function removePriorityTag(tag, buttonElement) {
             if (confirm('Are you sure you want to remove this priority tag?')) {
-                // Send request to remove priority tag
                 fetch('update_config.php', {
                     method: 'POST',
                     headers: {
@@ -670,12 +659,10 @@ $all_artists = getAllActiveArtists($pdo);
                 .then(data => {
                     if (data.success) {
                         console.log('Priority tag removed:', tag);
-                        // Remove the button from DOM
                         buttonElement.remove();
-                        // Check if no more priority tags and show "No priority tags set" message
                         const priorityTagsButtons = document.querySelector('.priority-tags-buttons');
                         if (priorityTagsButtons && priorityTagsButtons.children.length === 0) {
-                            location.reload(); // Reload to show "No priority tags set" message
+                            location.reload();
                         }
                     } else {
                         console.error('Failed to remove priority tag:', data.error);

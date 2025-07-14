@@ -1,13 +1,7 @@
 <?php
-/**
- * API endpoint to mark an artist as seen
- * Marks the artist as seen in the database
- */
 
-// Database configuration
 $db_file = 'e621_monitor.db';
 
-// Function to get database connection
 function getDbConnection($db_file) {
     try {
         $pdo = new PDO("sqlite:$db_file");
@@ -19,13 +13,11 @@ function getDbConnection($db_file) {
     }
 }
 
-// Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     die(json_encode(['error' => 'Method not allowed']));
 }
 
-// Get artist name from POST data
 $artist = $_POST['artist'] ?? null;
 
 if (!$artist) {
@@ -36,20 +28,16 @@ if (!$artist) {
 try {
     $pdo = getDbConnection($db_file);
     
-    // Try to add 'seen' column if it doesn't exist (ignore if already exists)
-    try {
+    try { // Try to add 'seen' column if it doesn't exist (ignore if already exists)
         $pdo->exec("ALTER TABLE monitored_tags ADD COLUMN seen BOOLEAN DEFAULT 0");
-    } catch (Exception $e) {
-        // Column might already exist, that's okay
+    } catch (Exception $e) { // Column might already exist, that's okay
     }
     
-    // Mark the artist as seen
     $stmt = $pdo->prepare("UPDATE monitored_tags SET seen = 1 WHERE tag_name = ?");
     $stmt->execute([$artist]);
     
     $updated_count = $stmt->rowCount();
     
-    // Return success response
     header('Content-Type: application/json');
     echo json_encode([
         'success' => true,

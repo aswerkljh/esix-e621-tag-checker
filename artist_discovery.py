@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Artist Discovery Script for NAS where porn is stored
-Scans directory for artist folders and creates artists.json
-"""
 
 import os
 import json
@@ -14,17 +10,13 @@ def discover_artists(directory_path):
     artists = []
     
     try:
-        # Get all directories in the specified path
         for item in os.listdir(directory_path):
             item_path = os.path.join(directory_path, item)
             
-            # Only process directories
             if os.path.isdir(item_path):
-                # Filter out folders starting with underscore
                 if not item.startswith('_'):
                     artists.append(item)
         
-        # Sort alphabetically for consistency
         artists.sort()
         
         return artists
@@ -53,15 +45,14 @@ def save_artists_json(artists, output_file='artists.json'):
         return False
 
 def push_to_164(json_file='artists.json'):
-    """Push artists.json to machine 164 via SCP."""
+    """Push artists.json to web server via SCP."""
     try:
         import subprocess
         
-        # SCP command to copy file to 164
         cmd = [
             'scp', 
             json_file, 
-            'user@2a05:f6c7:8321::164:/var/www/drkt.eu/subdomains/esix/artists.json'
+            'user@ip:/var/www/drkt.eu/subdomains/esix/artists.json'
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -79,12 +70,10 @@ def push_to_164(json_file='artists.json'):
 
 def main():
     """Main function to discover and push artists."""
-    # Hardcoded directory path
     directory_path = "/srv/nas/Furry/NSFW Furry"
     
     print(f"Scanning directory: {directory_path}")
     
-    # Discover artists
     artists = discover_artists(directory_path)
     
     if not artists:
@@ -95,13 +84,11 @@ def main():
     for artist in artists:
         print(f"  - {artist}")
     
-    # Save to JSON
     if save_artists_json(artists):
-        # Push to 164
         if push_to_164():
             print("Artist discovery completed successfully")
         else:
-            print("Failed to push to 164, but artists.json was created locally")
+            print("Failed to push to web server, but artists.json was created locally")
     else:
         print("Failed to save artists.json")
         sys.exit(1)
