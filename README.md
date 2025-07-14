@@ -41,7 +41,6 @@ Porn
    ```bash
    cd /var/www/html
    git clone https://github.com/aswerkljh/esix-e621-tag-checker
-   cd /var/www/html
    ```
 
 ### Step 2: Install Python Dependencies
