@@ -466,9 +466,6 @@ $all_artists = getAllActiveArtists($pdo);
                 <div class="stat-item">
                     <span><?php echo $total_artists; ?> artists monitored</span>
                 </div>
-                <div class="stat-item">
-                    <span>Time to check all: <?php echo $time_to_check_all; ?></span>
-                </div>
             </div>
         </div>
         
@@ -576,7 +573,7 @@ $all_artists = getAllActiveArtists($pdo);
                                value="<?php echo $current_interval; ?>" min="1" max="1440" style="width: 80px; margin: 0 10px;">
                         <button type="submit" class="settings-button">Update</button>
                     </form>
-                    <span class="settings-note">Current: <?php echo $current_interval; ?> minutes</span>
+                    <span class="settings-note">Time to check all artists: <?php echo $time_to_check_all; ?></span>
                 </div>
                 
                 <div class="setting-group">
