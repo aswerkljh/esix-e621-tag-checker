@@ -16,8 +16,7 @@ function getArtistsWithNewPosts($pdo) {
     $stmt = $pdo->prepare("
         SELECT DISTINCT mt.tag_name, mt.last_checked
         FROM monitored_tags mt
-        WHERE mt.is_active = 1
-        AND mt.seen = 0
+        WHERE mt.seen = 0
         AND EXISTS (
             SELECT 1 FROM new_posts_log npl 
             WHERE npl.tag_name = mt.tag_name 
@@ -32,7 +31,6 @@ function getTotalArtists($pdo) {
     $stmt = $pdo->prepare("
         SELECT COUNT(*) as total
         FROM monitored_tags mt
-        WHERE mt.is_active = 1
     ");
     $stmt->execute();
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -43,10 +41,9 @@ function getArtistsWithNoPosts($pdo) {
     $stmt = $pdo->prepare("
         SELECT mt.tag_name, mt.last_checked
         FROM monitored_tags mt
-        WHERE mt.is_active = 1
-        AND mt.last_post_id = 0
-        AND mt.last_checked IS NOT NULL
-        ORDER BY mt.last_checked DESC
+        WHERE mt.last_post_id = 0
+        AND (mt.last_checked IS NULL OR mt.check_failed = 1)
+        ORDER BY mt.last_checked DESC NULLS FIRST
     ");
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -99,7 +96,6 @@ function getAllActiveArtists($pdo) {
     $stmt = $pdo->prepare("
         SELECT tag_name 
         FROM monitored_tags 
-        WHERE is_active = 1 
         ORDER BY tag_name
     ");
     $stmt->execute();
@@ -532,7 +528,7 @@ $all_artists = getAllActiveArtists($pdo);
             <?php endif; ?>
             
             <?php if (!empty($artists_with_no_posts)): ?>
-                <div class="section-title">Checks Pending / No Posts</div>
+                <div class="section-title">Artists pending or returned no posts</div>
                 <ul class="artist-list">
                     <?php foreach ($artists_with_no_posts as $artist): ?>
                         <li class="empty-artist-item">

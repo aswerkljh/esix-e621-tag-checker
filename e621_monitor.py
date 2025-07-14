@@ -79,8 +79,8 @@ class E621Monitor:
                     tag_name TEXT UNIQUE NOT NULL,
                     last_post_id INTEGER DEFAULT 0,
                     last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_active BOOLEAN DEFAULT 1,
-                    seen BOOLEAN DEFAULT 0
+                    seen BOOLEAN DEFAULT 0,
+                    check_failed BOOLEAN DEFAULT 0
                 )
             ''')
             
@@ -171,25 +171,25 @@ class E621Monitor:
             # Check for HTTP errors
             if response.status_code == 403:
                 logger.error(f"Access denied (403) for {tag} - check User-Agent configuration")
-                return []
+                return [], 'http_error'
             elif response.status_code == 429:
                 logger.info(f"Rate limited (429) for {tag} - pausing script for 2 hours")
                 time.sleep(7200)  # 2 hours = 7200 seconds
-                return []
+                return [], 'rate_limited'
             elif response.status_code != 200:
                 logger.error(f"HTTP {response.status_code} error for {tag}: {response.text[:200]}")
-                return []
+                return [], 'http_error'
             
             data = response.json()
             posts = data.get('posts', [])
-            return posts
+            return posts, None
             
         except requests.RequestException as e:
             logger.error(f"Request error fetching posts for {tag}: {e}")
-            return []
+            return [], 'request_error'
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error for {tag}: {e}")
-            return []
+            return [], 'json_error'
     
     def check_tag_for_new_posts(self, tag):
         """Check a specific tag for new posts and update database."""
@@ -211,21 +211,39 @@ class E621Monitor:
             last_post_id = result[0]
         
         # Fetch latest posts
-        posts = self.get_latest_posts(tag, self.config['monitoring']['max_posts_per_check'])
+        posts, error_type = self.get_latest_posts(tag, self.config['monitoring']['max_posts_per_check'])
         
         # Always update last_checked timestamp, even if no posts found
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             
-            if not posts:
-                # No posts found (could be invalid tag or no posts)
+            if error_type:
+                # Handle API errors
                 cursor.execute('''
                     UPDATE monitored_tags 
-                    SET last_checked = CURRENT_TIMESTAMP
+                    SET last_checked = CURRENT_TIMESTAMP, check_failed = 1
                     WHERE tag_name = ?
                 ''', (tag,))
                 conn.commit()
                 return
+            
+            if not posts:
+                # No posts found - this could be a valid tag with no posts or an invalid tag
+                # Since we can't distinguish, we'll mark it as potentially failed
+                cursor.execute('''
+                    UPDATE monitored_tags 
+                    SET last_checked = CURRENT_TIMESTAMP, check_failed = 1
+                    WHERE tag_name = ?
+                ''', (tag,))
+                conn.commit()
+                return
+            
+            # Clear check_failed flag since we got posts successfully
+            cursor.execute('''
+                UPDATE monitored_tags 
+                SET check_failed = 0
+                WHERE tag_name = ?
+            ''', (tag,))
             
             # Find new posts (posts with ID > last_post_id)
             new_posts = [post for post in posts if post['id'] > last_post_id]
@@ -281,7 +299,7 @@ class E621Monitor:
                 cursor = conn.cursor()
                 
                 # Get current artists in database
-                cursor.execute('SELECT tag_name FROM monitored_tags WHERE is_active = 1')
+                cursor.execute('SELECT tag_name FROM monitored_tags')
                 current_tags = {row[0] for row in cursor.fetchall()}
                 
                 # Get new artists from JSON
@@ -297,15 +315,13 @@ class E621Monitor:
                         ''', (tag,))
                         new_artists_added.append(tag)
                 
-                # Remove deleted artists (mark as inactive)
+                # Completely remove deleted artists and all their data
                 deleted_artists = []
                 for tag in current_tags:
                     if tag not in new_tags:
-                        cursor.execute('''
-                            UPDATE monitored_tags 
-                            SET is_active = 0 
-                            WHERE tag_name = ?
-                        ''', (tag,))
+                        # Remove all data related to this artist
+                        cursor.execute('DELETE FROM new_posts_log WHERE tag_name = ?', (tag,))
+                        cursor.execute('DELETE FROM monitored_tags WHERE tag_name = ?', (tag,))
                         deleted_artists.append(tag)
                 
                 conn.commit()
@@ -313,7 +329,7 @@ class E621Monitor:
                 if new_artists_added:
                     logger.info(f"🎨 Added {len(new_artists_added)} new artists: {', '.join(new_artists_added)}")
                 if deleted_artists:
-                    logger.info(f"🗑️ Removed {len(deleted_artists)} deleted artists: {', '.join(deleted_artists)}")
+                    logger.info(f"🗑️ Completely removed {len(deleted_artists)} deleted artists: {', '.join(deleted_artists)}")
                 
         except Exception as e:
             logger.error(f"Error refreshing artists from JSON: {e}")
@@ -333,7 +349,6 @@ class E621Monitor:
                 cursor.execute(f'''
                     SELECT tag_name FROM monitored_tags 
                     WHERE tag_name IN ({placeholders}) 
-                    AND is_active = 1 
                     AND (last_checked IS NULL OR last_checked < datetime('now', '-1 day'))
                 ''', priority_tags)
                 
@@ -359,7 +374,6 @@ class E621Monitor:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT tag_name FROM monitored_tags 
-                WHERE is_active = 1 
                 ORDER BY last_checked ASC NULLS FIRST
                 LIMIT 1
             ''')
@@ -372,18 +386,43 @@ class E621Monitor:
         oldest_tag = result[0]
         self.check_tag_for_new_posts(oldest_tag)
     
+    def check_config_updates(self):
+        """Check for configuration updates and reschedule jobs if needed."""
+        # Get current check interval from database
+        current_interval = int(self.get_config_value('check_interval_minutes', self.config['monitoring']['check_interval_minutes']))
+        
+        # Check if the interval has changed
+        if hasattr(self, '_last_check_interval') and self._last_check_interval != current_interval:
+            logger.info(f"Check interval updated from {self._last_check_interval} to {current_interval} minutes")
+            
+            # Clear existing schedule and reschedule
+            schedule.clear()
+            schedule.every(current_interval).minutes.do(self.check_oldest_tag)
+            schedule.every(6).hours.do(self.refresh_artists_from_json)
+            schedule.every(10).minutes.do(self.check_config_updates)  # Re-add config check
+            
+            self._last_check_interval = current_interval
+        elif not hasattr(self, '_last_check_interval'):
+            # First run, set the initial interval
+            self._last_check_interval = current_interval
+            logger.info(f"Initial check interval set to {current_interval} minutes")
+    
     def run_monitor(self):
         """Run the monitoring service."""
         logger.info("Starting e621 monitor service")
         
         # Get check interval from database config
         check_interval = int(self.get_config_value('check_interval_minutes', self.config['monitoring']['check_interval_minutes']))
+        logger.info(f"Using check interval of {check_interval} minutes")
         
         # Schedule oldest tag checks based on config
         schedule.every(check_interval).minutes.do(self.check_oldest_tag)
         
         # Schedule artist refresh every 6 hours
         schedule.every(6).hours.do(self.refresh_artists_from_json)
+        
+        # Schedule configuration check every 10 minutes
+        schedule.every(10).minutes.do(self.check_config_updates)
         
         # Run initial checks
         self.refresh_artists_from_json()

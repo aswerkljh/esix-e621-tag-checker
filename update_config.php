@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $priority_tags = isset($_POST['priority_tags']) ? $_POST['priority_tags'] : [];
         
         // Confirm that priority tags are valid artists
-        $stmt = $pdo->prepare("SELECT tag_name FROM monitored_tags WHERE is_active = 1");
+        $stmt = $pdo->prepare("SELECT tag_name FROM monitored_tags");
         $stmt->execute();
         $valid_tags = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['message_type'] = "error";
         } else {
             // Validate that the tag exists in monitored_tags
-            $stmt = $pdo->prepare("SELECT tag_name FROM monitored_tags WHERE tag_name = ? AND is_active = 1");
+            $stmt = $pdo->prepare("SELECT tag_name FROM monitored_tags WHERE tag_name = ?");
             $stmt->execute([$new_tag]);
             if (!$stmt->fetch()) {
                 $_SESSION['message'] = "Tag '{$new_tag}' not found in monitored artists";
