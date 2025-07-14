@@ -14,6 +14,7 @@ Assumes that you know how to operate a webserver and that you have a local folde
 
 The folder monitor script expects a certain folder structure. Folders should be named after the artist as their exact tag is on e621, including if it has _(artist) appended to it. 
 
+```
 Porn
 ├─ snowskau
 │  └─ subfolders are not processed so does not matter
@@ -21,6 +22,7 @@ Porn
 └─ trigaroo
     ├─ Some Comic 1
     └─ Some Comic 2
+```
 
 ## Installation
 
@@ -91,7 +93,7 @@ Porn
    }
    ```
 
-2. **Update the User-Agent** with your e621.net username and email for API compliance.
+2. **Update the User-Agent** with your e621.net username for API compliance.
 
 ### Step 4: Set Up Artist Discovery (Optional)
 
@@ -117,7 +119,7 @@ If you have artist folders on another machine (machine 30):
 
 ### OPTIONAL Artist Discovery Script (`artist_discovery.py`)
 
-The `artist_discovery.py` script is an **optional component** that automatically scans your local artist folder structure and generates the `artists.json` file. This script is designed for users who have their art collection organized in folders by artist name.
+The `artist_discovery.py` script is an **optional component** that automatically scans your local artist folder structure and generates the `artists.json` file. This script is designed for users who have their porn collection organized in folders by artist name.
 
 #### What it does:
 - **Scans directories** for artist folders (excluding folders starting with underscore)
@@ -170,73 +172,6 @@ The monitor will work perfectly fine with a manually curated `artists.json` file
    sudo apt-get install php-sqlite3
    ```
 
-## Usage
-
-### Starting the Monitor
-
-1. **Test the setup** (run in foreground first):
-   ```bash
-   cd /var/www/drkt.eu/subdomains/esix
-   source esixmonitor-venv/bin/activate  # If using virtual environment
-   python3 e621_monitor.py
-   ```
-
-2. **Run as background service**:
-   ```bash
-   # Using nohup
-   nohup python3 e621_monitor.py > e621_monitor.log 2>&1 &
-   
-   # Or using screen
-   screen -S e621-monitor
-   python3 e621_monitor.py
-   # Press Ctrl+A, then D to detach
-   ```
-
-3. **Set up as systemd service** (recommended for production):
-   ```bash
-   # Create service file
-   sudo nano /etc/systemd/system/e621-monitor.service
-   ```
-
-   Add this content:
-   ```ini
-   [Unit]
-   Description=e621 Artist Tag Monitor
-   After=network.target
-   
-   [Service]
-   Type=simple
-   User=www-data
-   WorkingDirectory=/var/www/drkt.eu/subdomains/esix
-   ExecStart=/var/www/drkt.eu/subdomains/esix/esixmonitor-venv/bin/python e621_monitor.py
-   Restart=always
-   RestartSec=10
-   
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-   Then enable and start:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable e621-monitor
-   sudo systemctl start e621-monitor
-   sudo systemctl status e621-monitor
-   ```
-
-### Accessing the Web Interface
-
-1. **Navigate to your web interface**:
-   ```
-   http://your-domain.com/index.php
-   ```
-
-2. **The interface shows**:
-   - **Summary Statistics**: Total monitored artists and artists with new posts
-   - **Artist Cards**: Each monitored artist with status indicators
-   - **Direct Links**: Click "View Posts" to mark as seen and open artist page on e621.net
-   - **Auto-refresh**: Page updates every 5 minutes
-
 ### Managing Artists
 
 1. **Add new artists**:
@@ -274,7 +209,7 @@ self.config = {
     },
     'monitoring': {
         'check_interval_minutes': 30,  # This is a fallback, the real setting is stored in the database
-        'max_posts_per_check': 1       # Posts to fetch per check, only 1 is needed so do not edit this
+        'max_posts_per_check': 1       # Posts to fetch per check, only 1 is needed so do not edit this     TODO: remove
     },
     'priority_tags': [
         # This is a fallback, the real setting is stored in the database
@@ -296,104 +231,24 @@ The web interface automatically reads configuration from the database. You can u
 ### Non-Priority Tags
 - Non-priority tags use oldest-checked selection
 - The system queries the database for the tag checked longest ago
-- This ensures fair distribution across all artists
 
-### Artist Discovery
+### Artist Discovery (the optional script)
 - New artists are automatically added when found in `artists.json`
 - Deleted artists are marked as inactive
 - The system handles folder deletions gracefully
-
-## Database Schema
-
-### monitored_tags
-- `id`: Primary key
-- `tag_name`: Artist tag name (e.g., "artist:example")
-- `last_post_id`: Highest post ID seen for this tag
-- `last_checked`: Timestamp of last check
-- `is_active`: Whether to monitor this tag
-- `seen`: Whether the user has marked this artist as seen
-
-### new_posts_log
-- `id`: Primary key
-- `tag_name`: Artist tag name
-- `post_id`: Post ID that was discovered
-- `discovered_at`: When the post was first seen
-
-### configuration
-- `key`: Configuration key
-- `value`: Configuration value
-- `updated_at`: When the configuration was last updated
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Database connection errors**:
-   ```bash
-   # Check file permissions
-   ls -la e621_monitor.db
-   chmod 644 e621_monitor.db
-   chown www-data:www-data e621_monitor.db
-   ```
-
-2. **Monitor not starting**:
-   ```bash
-   # Check Python dependencies
-   pip list | grep -E "(requests|schedule|python-dotenv)"
-   
-   # Check Python version
-   python3 --version
-   ```
-
-3. **API rate limiting**:
-   - Check `e621_monitor.log` for 429 errors
-   - Increase check interval in configuration
-   - Verify User-Agent is properly set
-
-4. **No new posts detected**:
-   ```bash
-   # Check if tags exist on e621.net
-   curl -H "User-Agent: esix update checker/0.3" "https://e621.net/posts.json?tags=artist:example&limit=1"
-   ```
-
-5. **Web interface not loading**:
-   ```bash
-   # Check PHP SQLite extension
-   php -m | grep sqlite
-   
-   # Check web server logs
-   sudo tail -f /var/log/apache2/error.log
-   # or
-   sudo tail -f /var/log/nginx/error.log
-   ```
 
 ### Log Files
 
 - `e621_monitor.log`: Python script activity
 - Check for errors, API responses, and monitoring status
 
-### Testing
-
-Test the setup by checking the logs for:
-- Artist discovery messages
-- Priority tag checks
-- Oldest-checked tag selection
-
 ## Security Considerations
 
 - The monitor only reads public data from e621.net
 - No authentication required for the API
-- Database contains only post IDs and timestamps
-- Web interface shows no sensitive information
-- Use proper file permissions to secure the installation
+- Database contains only post IDs, timestamps and some settings
+- Web interface shows no sensitive information except what you're into, I guess
 
-## Performance
-
-- **Lightweight**: SQLite database, minimal resource usage
-- **Efficient**: Only checks for new posts, doesn't store images
-- **Scalable**: Can monitor hundreds of tags with minimal impact
-- **Reliable**: Handles API errors gracefully with retry logic
-- **Smart Selection**: Priority tags get guaranteed checks, others use fair distribution
 
 ## Contributing
 
