@@ -2,7 +2,7 @@
 
 A Python-based monitoring system that tracks new posts on e621.net for specific artist tags, with a simple PHP interface.
 
-![Logo](./preview.png)
+![Logo](./preview.png?)
 
 Assumes that you know how to operate a webserver. Does not download anything for you or on your behalf.
 
