@@ -158,7 +158,7 @@ class E621Monitor:
             response = self.session.get(url, params=params)
             
             if response.status_code == 403:
-                logger.error(f"Access denied (403) for {tag} - check User-Agent configuration")
+                logger.error(f"Access denied (403) for {tag}")
                 return [], 'http_error'
             elif response.status_code == 429:
                 logger.info(f"Rate limited (429) for {tag} - pausing script for 2 hours")
@@ -255,9 +255,9 @@ class E621Monitor:
                 conn.commit()
                 
                 if last_post_id == 0:
-                    logger.info(f"New artist discovered: {tag} - Found {len(new_posts)} existing posts")
+                    logger.info(f"New artist discovered: {tag}")
                 else:
-                    logger.info(f"Found {len(new_posts)} new posts for {tag}")
+                    logger.info(f"Found new posts for {tag}")
             else:
                 cursor.execute('''
                     UPDATE monitored_tags 
@@ -376,7 +376,7 @@ class E621Monitor:
     
     def run_monitor(self):
         """Run the monitoring service."""
-        logger.info("Starting e621 monitor service")
+        logger.info("Starting esix...")
 
         check_interval = int(self.get_config_value('check_interval_minutes', self.config['monitoring']['check_interval_minutes']))
         logger.info(f"Using check interval of {check_interval} minutes")
