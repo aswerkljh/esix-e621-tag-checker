@@ -16,7 +16,6 @@ import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -29,11 +28,10 @@ logger = logging.getLogger(__name__)
 
 class E621Monitor:
     def __init__(self, db_file='e621_monitor.db'):
-        # Configuration
         self.config = {
             'e621_api': {
                 'base_url': 'https://e621.net',
-                'user_agent': 'esix update checker/0.3 (by username: 089231745aaa | email: esix@drkt.eu)'
+                'user_agent': 'esix update checker/0.4 (by username: 089231745aaa | email: esix@drkt.eu)'
             },
             'monitoring': {
                 'check_interval_minutes': 30,
@@ -72,7 +70,6 @@ class E621Monitor:
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             
-            # Create monitored_tags table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS monitored_tags (
                     id INTEGER PRIMARY KEY,
@@ -84,7 +81,6 @@ class E621Monitor:
                 )
             ''')
             
-            # Create new_posts_log table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS new_posts_log (
                     id INTEGER PRIMARY KEY,
@@ -95,7 +91,6 @@ class E621Monitor:
                 )
             ''')
             
-            # Create configuration table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS configuration (
                     key TEXT PRIMARY KEY,
@@ -104,35 +99,29 @@ class E621Monitor:
                 )
             ''')
             
-            # Initialize default configuration values
             cursor.execute('''
                 INSERT OR IGNORE INTO configuration (key, value) 
                 VALUES ('check_interval_minutes', ?)
             ''', (str(self.config['monitoring']['check_interval_minutes']),))
             
-            # Initialize priority tags
             cursor.execute('''
                 INSERT OR IGNORE INTO configuration (key, value) 
                 VALUES ('priority_tags', ?)
             ''', (json.dumps(self.config['priority_tags']),))
             
-            # Load artists from artists.json or fallback to config
             artists = self.load_artists_from_json()
-            
-            # Insert artists as monitored tags
+
             for artist in artists:
                 cursor.execute('''
                     INSERT OR IGNORE INTO monitored_tags (tag_name) 
                     VALUES (?)
                 ''', (artist,))
             
-            # Add seen column if it doesn't exist (for existing databases)
             try:
                 cursor.execute('ALTER TABLE monitored_tags ADD COLUMN seen BOOLEAN DEFAULT 0')
                 conn.commit()
                 logger.info("Added 'seen' column to existing database")
             except sqlite3.OperationalError:
-                # Column already exists
                 pass
             
             conn.commit()
@@ -168,7 +157,6 @@ class E621Monitor:
         try:
             response = self.session.get(url, params=params)
             
-            # Check for HTTP errors
             if response.status_code == 403:
                 logger.error(f"Access denied (403) for {tag} - check User-Agent configuration")
                 return [], 'http_error'
@@ -195,7 +183,6 @@ class E621Monitor:
         """Check a specific tag for new posts and update database."""
         logger.info(f"Checking {tag}")
         
-        # Get current last_post_id from database
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -210,15 +197,12 @@ class E621Monitor:
             
             last_post_id = result[0]
         
-        # Fetch latest posts
         posts, error_type = self.get_latest_posts(tag, self.config['monitoring']['max_posts_per_check'])
         
-        # Always update last_checked timestamp, even if no posts found
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             
             if error_type:
-                # Handle API errors
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET last_checked = CURRENT_TIMESTAMP, check_failed = 1
@@ -229,7 +213,7 @@ class E621Monitor:
             
             if not posts:
                 # No posts found - this could be a valid tag with no posts or an invalid tag
-                # Since we can't distinguish, we'll mark it as potentially failed
+                # It is marked as check_failed because it could indicate the tag is simply wrong, ie missing _(artist)
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET last_checked = CURRENT_TIMESTAMP, check_failed = 1
@@ -238,36 +222,30 @@ class E621Monitor:
                 conn.commit()
                 return
             
-            # Clear check_failed flag since we got posts successfully
             cursor.execute('''
                 UPDATE monitored_tags 
                 SET check_failed = 0
                 WHERE tag_name = ?
             ''', (tag,))
             
-            # Find new posts (posts with ID > last_post_id)
             new_posts = [post for post in posts if post['id'] > last_post_id]
             
             if new_posts:
-                # Sort by ID to get the highest
                 new_posts.sort(key=lambda x: x['id'])
                 highest_id = new_posts[-1]['id']
                 
-                # Update last_post_id and last_checked
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET last_post_id = ?, last_checked = CURRENT_TIMESTAMP
                     WHERE tag_name = ?
                 ''', (highest_id, tag))
                 
-                # Log new posts
                 for post in new_posts:
                     cursor.execute('''
                         INSERT OR IGNORE INTO new_posts_log (tag_name, post_id)
                         VALUES (?, ?)
                     ''', (tag, post['id']))
                 
-                # Reset seen flag when new posts are found
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET seen = 0 
@@ -276,13 +254,11 @@ class E621Monitor:
                 
                 conn.commit()
                 
-                # Check if this is a first-time check (last_post_id was 0)
                 if last_post_id == 0:
                     logger.info(f"New artist discovered: {tag} - Found {len(new_posts)} existing posts")
                 else:
                     logger.info(f"Found {len(new_posts)} new posts for {tag}")
             else:
-                # No new posts found, but update last_checked
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET last_checked = CURRENT_TIMESTAMP
@@ -298,14 +274,11 @@ class E621Monitor:
             with sqlite3.connect(self.db_file) as conn:
                 cursor = conn.cursor()
                 
-                # Get current artists in database
                 cursor.execute('SELECT tag_name FROM monitored_tags')
                 current_tags = {row[0] for row in cursor.fetchall()}
                 
-                # Get new artists from JSON
                 new_tags = set(artists)
                 
-                # Add new artists
                 new_artists_added = []
                 for tag in new_tags:
                     if tag not in current_tags:
@@ -315,11 +288,10 @@ class E621Monitor:
                         ''', (tag,))
                         new_artists_added.append(tag)
                 
-                # Completely remove deleted artists and all their data
+                # If an artist is deleted from artists.json, it will be completely deleted from the database
                 deleted_artists = []
                 for tag in current_tags:
                     if tag not in new_tags:
-                        # Remove all data related to this artist
                         cursor.execute('DELETE FROM new_posts_log WHERE tag_name = ?', (tag,))
                         cursor.execute('DELETE FROM monitored_tags WHERE tag_name = ?', (tag,))
                         deleted_artists.append(tag)
@@ -336,7 +308,6 @@ class E621Monitor:
     
     def get_priority_tags_to_check(self):
         """Get priority tags that haven't been checked in the last 24 hours."""
-        # Get priority tags from database config
         priority_tags_json = self.get_config_value('priority_tags', json.dumps(self.config['priority_tags']))
         priority_tags = json.loads(priority_tags_json)
         
@@ -388,14 +359,11 @@ class E621Monitor:
     
     def check_config_updates(self):
         """Check for configuration updates and reschedule jobs if needed."""
-        # Get current check interval from database
         current_interval = int(self.get_config_value('check_interval_minutes', self.config['monitoring']['check_interval_minutes']))
         
-        # Check if the interval has changed
         if hasattr(self, '_last_check_interval') and self._last_check_interval != current_interval:
             logger.info(f"Check interval updated from {self._last_check_interval} to {current_interval} minutes")
             
-            # Clear existing schedule and reschedule
             schedule.clear()
             schedule.every(current_interval).minutes.do(self.check_oldest_tag)
             schedule.every(6).hours.do(self.refresh_artists_from_json)
@@ -403,35 +371,28 @@ class E621Monitor:
             
             self._last_check_interval = current_interval
         elif not hasattr(self, '_last_check_interval'):
-            # First run, set the initial interval
             self._last_check_interval = current_interval
             logger.info(f"Initial check interval set to {current_interval} minutes")
     
     def run_monitor(self):
         """Run the monitoring service."""
         logger.info("Starting e621 monitor service")
-        
-        # Get check interval from database config
+
         check_interval = int(self.get_config_value('check_interval_minutes', self.config['monitoring']['check_interval_minutes']))
         logger.info(f"Using check interval of {check_interval} minutes")
-        
-        # Schedule oldest tag checks based on config
+
         schedule.every(check_interval).minutes.do(self.check_oldest_tag)
-        
-        # Schedule artist refresh every 6 hours
-        schedule.every(6).hours.do(self.refresh_artists_from_json)
-        
-        # Schedule configuration check every 10 minutes
-        schedule.every(10).minutes.do(self.check_config_updates)
-        
-        # Run initial checks
+
+        schedule.every(12).hours.do(self.refresh_artists_from_json)
+
+        schedule.every(30).minutes.do(self.check_config_updates)
+
         self.refresh_artists_from_json()
         self.check_oldest_tag()
         
-        # Keep running
         while True:
             schedule.run_pending()
-            time.sleep(60)  # Check every minute
+            time.sleep(60)
 
 def main():
     """Main entry point."""

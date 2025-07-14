@@ -613,7 +613,6 @@ $all_artists = getAllActiveArtists($pdo);
             linkElement.classList.add('clicked');
             linkElement.textContent = 'Marked as Seen';
             
-            // Open the link in a new tab
             // middle-mouse button works but doesn't trigger the mark_seen.php script
             window.open(url, '_blank');
             
@@ -630,7 +629,6 @@ $all_artists = getAllActiveArtists($pdo);
                     console.log('Marked as seen:', artist);
                 } else {
                     console.error('Failed to mark as seen:', data.error);
-                    // Revert visual feedback on error
                     linkElement.classList.remove('clicked');
                     linkElement.textContent = 'View Posts';
                 }
