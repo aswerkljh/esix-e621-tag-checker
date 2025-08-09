@@ -1,6 +1,6 @@
 # e621 'esix monitor' Artist Tag Monitor
 
-A Python-based monitoring system that tracks new posts on e621.net for specific artist tags, with a simple PHP interface.
+A Python-based monitoring system for Linux that tracks new posts on e621.net for specific artist tags, with a simple PHP interface.
 
 ![Logo](./preview.png?)
 
@@ -90,11 +90,10 @@ The monitor will work perfectly fine with a manually curated `artists.json` file
 1. **Ensure PHP has SQLite support**:
    ```bash
    # Check if PDO SQLite is installed
-   php -m | grep pdo
-   php -m | grep sqlite
-   
-   # Install if missing (Ubuntu/Debian)
-   sudo apt-get install php-sqlite3
+   if ! $(php -m | grep -E '^pdo$' >/dev/null) || ! $(php -m | grep -E '^sqlite$' >/dev/null); then
+      # Install if missing (Ubuntu/Debian)
+      sudo apt-get install php-sqlite3
+   fi
    ```
 
 ### Managing Artists
