@@ -31,7 +31,7 @@ class E621Monitor:
         self.config = {
             'e621_api': {
                 'base_url': 'https://e621.net',
-                'user_agent': 'esix update checker/0.4 (by username: 089231745aaa | email: esix@drkt.eu)'
+                'user_agent': 'esix tag checker/0.4 https://github.com/aswerkljh/esix-e621-tag-checker username:089231745aaa email:esix@drkt.eu'
             },
             'monitoring': {
                 'check_interval_minutes': 30,
@@ -81,15 +81,7 @@ class E621Monitor:
                 )
             ''')
             
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS new_posts_log (
-                    id INTEGER PRIMARY KEY,
-                    tag_name TEXT NOT NULL,
-                    post_id INTEGER NOT NULL,
-                    discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(tag_name, post_id)
-                )
-            ''')
+
             
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS configuration (
@@ -245,11 +237,7 @@ class E621Monitor:
                     WHERE tag_name = ?
                 ''', (highest_id, tag))
             
-                for post in new_posts:
-                    cursor.execute('''
-                        INSERT OR IGNORE INTO new_posts_log (tag_name, post_id)
-                        VALUES (?, ?)
-                    ''', (tag, post['id']))
+
                 
                 if new_posts:
                     cursor.execute('''
@@ -300,7 +288,6 @@ class E621Monitor:
                 deleted_artists = []
                 for tag in current_tags:
                     if tag not in new_tags:
-                        cursor.execute('DELETE FROM new_posts_log WHERE tag_name = ?', (tag,))
                         cursor.execute('DELETE FROM monitored_tags WHERE tag_name = ?', (tag,))
                         deleted_artists.append(tag)
                 
