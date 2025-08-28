@@ -23,10 +23,6 @@ function getArtistsWithNewPosts($pdo) {
         SELECT DISTINCT mt.tag_name, mt.last_checked
         FROM monitored_tags mt
         WHERE mt.seen = 0
-        AND EXISTS (
-            SELECT 1 FROM new_posts_log npl 
-            WHERE npl.tag_name = mt.tag_name 
-        )
         ORDER BY mt.tag_name
     ");
     $stmt->execute();
