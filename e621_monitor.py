@@ -181,7 +181,7 @@ class E621Monitor:
     
     def check_tag_for_new_posts(self, tag):
         """Check a specific tag for new posts and update database."""
-        logger.info(f"Checking {tag}")
+        #logger.info(f"Checking {tag}")
         
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
@@ -196,6 +196,8 @@ class E621Monitor:
                 return
             
             last_post_id = result[0]
+            
+        #logger.info(f"Last post ID for {tag}: {last_post_id} (type: {type(last_post_id)})")
         
         posts, error_type = self.get_latest_posts(tag, self.config['monitoring']['max_posts_per_check'])
         
@@ -212,7 +214,6 @@ class E621Monitor:
                 return
             
             if not posts:
-                # No posts found - this could be a valid tag with no posts or an invalid tag
                 # It is marked as check_failed because it could indicate the tag is simply wrong, ie missing _(artist)
                 cursor.execute('''
                     UPDATE monitored_tags 
@@ -228,36 +229,43 @@ class E621Monitor:
                 WHERE tag_name = ?
             ''', (tag,))
             
+            if posts:
+                highest_id = max(post['id'] for post in posts)
+                
             new_posts = [post for post in posts if post['id'] > last_post_id]
             
-            if new_posts:
-                new_posts.sort(key=lambda x: x['id'])
-                highest_id = new_posts[-1]['id']
+            if posts:
+                #logger.info(f"Posts returned for {tag}: {[post['id'] for post in posts]}")
+                #logger.info(f"New posts found for {tag}: {[post['id'] for post in new_posts]}")
                 
+                # Always update the last_post_id to the current highest available
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET last_post_id = ?, last_checked = CURRENT_TIMESTAMP
                     WHERE tag_name = ?
                 ''', (highest_id, tag))
-                
+            
                 for post in new_posts:
                     cursor.execute('''
                         INSERT OR IGNORE INTO new_posts_log (tag_name, post_id)
                         VALUES (?, ?)
                     ''', (tag, post['id']))
                 
-                cursor.execute('''
-                    UPDATE monitored_tags 
-                    SET seen = 0 
-                    WHERE tag_name = ?
-                ''', (tag,))
+                if new_posts:
+                    cursor.execute('''
+                        UPDATE monitored_tags 
+                        SET seen = 0 
+                        WHERE tag_name = ?
+                    ''', (tag,))
                 
                 conn.commit()
                 
                 if last_post_id == 0:
-                    logger.info(f"New artist discovered: {tag}")
-                else:
-                    logger.info(f"Found new posts for {tag}")
+                    #logger.info(f"New artist discovered: {tag}")
+                elif new_posts:
+                    #logger.info(f"Found new posts for {tag}")
+                elif highest_id != last_post_id:
+                    #logger.info(f"Updated last_post_id for {tag} from {last_post_id} to {highest_id} (API returned different posts)")
             else:
                 cursor.execute('''
                     UPDATE monitored_tags 
@@ -299,9 +307,9 @@ class E621Monitor:
                 conn.commit()
                 
                 if new_artists_added:
-                    logger.info(f"🎨 Added {len(new_artists_added)} new artists: {', '.join(new_artists_added)}")
+                    logger.info(f"Added {len(new_artists_added)} new artists: {', '.join(new_artists_added)}")
                 if deleted_artists:
-                    logger.info(f"🗑️ Completely removed {len(deleted_artists)} deleted artists: {', '.join(deleted_artists)}")
+                    logger.info(f"Completely removed {len(deleted_artists)} deleted artists: {', '.join(deleted_artists)}")
                 
         except Exception as e:
             logger.error(f"Error refreshing artists from JSON: {e}")
