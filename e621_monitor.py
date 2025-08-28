@@ -248,12 +248,12 @@ class E621Monitor:
                 
                 conn.commit()
                 
-                if last_post_id == 0:
-                    #logger.info(f"New artist discovered: {tag}")
-                elif new_posts:
-                    #logger.info(f"Found new posts for {tag}")
-                elif highest_id != last_post_id:
-                    #logger.info(f"Updated last_post_id for {tag} from {last_post_id} to {highest_id} (API returned different posts)")
+                # if last_post_id == 0:
+                #     logger.info(f"New artist discovered: {tag}")
+                # elif new_posts:
+                #     logger.info(f"Found new posts for {tag}")
+                # elif highest_id != last_post_id:
+                #     logger.info(f"Updated last_post_id for {tag} from {last_post_id} to {highest_id} (API returned different posts)")
             else:
                 cursor.execute('''
                     UPDATE monitored_tags 
