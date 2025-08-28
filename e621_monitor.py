@@ -284,7 +284,6 @@ class E621Monitor:
                         ''', (tag,))
                         new_artists_added.append(tag)
                 
-                # If an artist is deleted from artists.json, it will be completely deleted from the database
                 deleted_artists = []
                 for tag in current_tags:
                     if tag not in new_tags:
@@ -296,7 +295,7 @@ class E621Monitor:
                 if new_artists_added:
                     logger.info(f"Added {len(new_artists_added)} new artists: {', '.join(new_artists_added)}")
                 if deleted_artists:
-                    logger.info(f"Completely removed {len(deleted_artists)} deleted artists: {', '.join(deleted_artists)}")
+                    logger.info(f"Removed {len(deleted_artists)} deleted artists: {', '.join(deleted_artists)}")
                 
         except Exception as e:
             logger.error(f"Error refreshing artists from JSON: {e}")
