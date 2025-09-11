@@ -197,6 +197,9 @@ class E621Monitor:
             cursor = conn.cursor()
             
             if error_type:
+                # When there's an error, don't change the seen flag
+                # This prevents false positives when e621 comes back online
+                logger.warning(f"Error checking {tag}: {error_type} - preserving existing seen status")
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET last_checked = CURRENT_TIMESTAMP, check_failed = 1
@@ -215,52 +218,44 @@ class E621Monitor:
                 conn.commit()
                 return
             
+            # Clear the check_failed flag since we got posts successfully
             cursor.execute('''
                 UPDATE monitored_tags 
                 SET check_failed = 0
                 WHERE tag_name = ?
             ''', (tag,))
             
-            if posts:
-                highest_id = max(post['id'] for post in posts)
-                
+            # Get the highest post ID and find new posts
+            highest_id = max(post['id'] for post in posts)
             new_posts = [post for post in posts if post['id'] > last_post_id]
             
-            if posts:
-                #logger.info(f"Posts returned for {tag}: {[post['id'] for post in posts]}")
-                #logger.info(f"New posts found for {tag}: {[post['id'] for post in new_posts]}")
-                
-                # Always update the last_post_id to the current highest available
-                cursor.execute('''
-                    UPDATE monitored_tags 
-                    SET last_post_id = ?, last_checked = CURRENT_TIMESTAMP
-                    WHERE tag_name = ?
-                ''', (highest_id, tag))
+            #logger.info(f"Posts returned for {tag}: {[post['id'] for post in posts]}")
+            #logger.info(f"New posts found for {tag}: {[post['id'] for post in new_posts]}")
             
-
-                
-                if new_posts:
-                    cursor.execute('''
-                        UPDATE monitored_tags 
-                        SET seen = 0 
-                        WHERE tag_name = ?
-                    ''', (tag,))
-                
-                conn.commit()
-                
-                # if last_post_id == 0:
-                #     logger.info(f"New artist discovered: {tag}")
-                # elif new_posts:
-                #     logger.info(f"Found new posts for {tag}")
-                # elif highest_id != last_post_id:
-                #     logger.info(f"Updated last_post_id for {tag} from {last_post_id} to {highest_id} (API returned different posts)")
-            else:
+            # Always update the last_post_id to the current highest available
+            cursor.execute('''
+                UPDATE monitored_tags 
+                SET last_post_id = ?, last_checked = CURRENT_TIMESTAMP
+                WHERE tag_name = ?
+            ''', (highest_id, tag))
+            
+            # Only set seen = 0 if we actually found new posts
+            if new_posts:
+                logger.info(f"Found {len(new_posts)} new posts for {tag}: {[post['id'] for post in new_posts]}")
                 cursor.execute('''
                     UPDATE monitored_tags 
-                    SET last_checked = CURRENT_TIMESTAMP
+                    SET seen = 0 
                     WHERE tag_name = ?
                 ''', (tag,))
-                conn.commit()
+            
+            conn.commit()
+            
+            # if last_post_id == 0:
+            #     logger.info(f"New artist discovered: {tag}")
+            # elif new_posts:
+            #     logger.info(f"Found new posts for {tag}")
+            # elif highest_id != last_post_id:
+            #     logger.info(f"Updated last_post_id for {tag} from {last_post_id} to {highest_id} (API returned different posts)")
     
     def refresh_artists_from_json(self):
         """Refresh the monitored artists from artists.json."""
