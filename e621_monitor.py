@@ -241,7 +241,7 @@ class E621Monitor:
             
             # Only set seen = 0 if we actually found new posts
             if new_posts:
-                logger.info(f"Found {len(new_posts)} new posts for {tag}: {[post['id'] for post in new_posts]}")
+                logger.info(f"Found a new post for {tag}: {[post['id'] for post in new_posts]}")
                 cursor.execute('''
                     UPDATE monitored_tags 
                     SET seen = 0 
